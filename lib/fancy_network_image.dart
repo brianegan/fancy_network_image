@@ -7,8 +7,14 @@
  */
 library fancy_network_image;
 
+import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 class FancyNetworkImage extends StatefulWidget {
   static List<Object> _registeredErrors = <Object>[];
@@ -442,4 +448,38 @@ class FancyNetworkImageProvider extends NetworkImage {
 
   /// Listener to be called when images fails to load.
   final ErrorListener errorListener;
+
+  @override
+  ImageStreamCompleter load(NetworkImage key) {
+    return new MultiFrameImageStreamCompleter(
+        codec: _loadAsync(key),
+        scale: key.scale,
+        informationCollector: (StringBuffer information) {
+          information.writeln('Image provider: $this');
+          information.write('Image key: $key');
+        });
+  }
+
+  static final http.Client _httpClient = createHttpClient();
+
+  Future<ui.Codec> _loadAsync(NetworkImage key) async {
+    assert(key == this);
+    try {
+      final Uri resolved = Uri.base.resolve(key.url);
+      final http.Response response =
+          await _httpClient.get(resolved, headers: headers);
+      if (response == null || response.statusCode != 200)
+        throw new Exception('HTTP request failed, statusCode: ${response
+            ?.statusCode}, $resolved');
+
+      final Uint8List bytes = response.bodyBytes;
+      if (bytes.lengthInBytes == 0)
+        throw new Exception('NetworkImage is an empty file: $resolved');
+
+      return await ui.instantiateImageCodec(bytes);
+    } catch (e) {
+      errorListener();
+      rethrow;
+    }
+  }
 }
