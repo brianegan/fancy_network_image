@@ -45,8 +45,7 @@ class FancyNetworkImage extends StatefulWidget {
     this.headers,
     this.scale: 1.0,
   })
-      : assert(imageUrl != null),
-        assert(fadeOutDuration != null),
+      : assert(fadeOutDuration != null),
         assert(fadeOutCurve != null),
         assert(fadeInDuration != null),
         assert(fadeInCurve != null),
@@ -189,7 +188,7 @@ class FancyImageProviderResolver {
   ImageStream _imageStream;
   ImageInfo _imageInfo;
 
-  void resolve(NetworkImage provider) {
+  void resolve(FancyNetworkImageProvider provider) {
     final ImageStream oldImageStream = _imageStream;
     _imageStream = provider.resolve(createLocalImageConfiguration(state.context,
         size: widget.width != null && widget.height != null
@@ -265,7 +264,7 @@ class FancyNetworkImageState extends State<FancyNetworkImage>
   void didChangeDependencies() {
     _imageProvider
         .obtainKey(createLocalImageConfiguration(context))
-        .then<void>((NetworkImage key) {
+        .then<void>((FancyNetworkImageProvider key) {
       if (FancyNetworkImage._registeredErrors.contains(key)) {
         setState(() => _hasError = true);
       }
@@ -382,7 +381,7 @@ class FancyNetworkImageState extends State<FancyNetworkImage>
   void _imageLoadingFailed() {
     _imageProvider
         .obtainKey(createLocalImageConfiguration(context))
-        .then<void>((NetworkImage key) {
+        .then<void>((FancyNetworkImageProvider key) {
       if (!FancyNetworkImage._registeredErrors.contains(key)) {
         FancyNetworkImage._registeredErrors.add(key);
       }
@@ -437,20 +436,39 @@ class FancyNetworkImageState extends State<FancyNetworkImage>
 
 typedef void ErrorListener();
 
-class FancyNetworkImageProvider extends NetworkImage {
+class FancyNetworkImageProvider
+    extends ImageProvider<FancyNetworkImageProvider> {
+  /// Creates an object that fetches the image at the given URL.
+  ///
+  /// The arguments must not be null.
   const FancyNetworkImageProvider(
-    String url, {
-    double scale: 1.0,
-    Map<String, String> headers,
+    this.url, {
+    this.scale: 1.0,
+    this.headers,
     this.errorListener,
-  })
-      : super(url, scale: scale, headers: headers);
+  });
+
+  /// The URL from which the image will be fetched.
+  final String url;
+
+  /// The scale to place in the [ImageInfo] object of the image.
+  final double scale;
+
+  /// The HTTP headers that will be used with [HttpClient.get] to fetch image from network.
+  final Map<String, String> headers;
 
   /// Listener to be called when images fails to load.
   final ErrorListener errorListener;
 
   @override
-  ImageStreamCompleter load(NetworkImage key) {
+  Future<FancyNetworkImageProvider> obtainKey(
+    ImageConfiguration configuration,
+  ) {
+    return new SynchronousFuture<FancyNetworkImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter load(FancyNetworkImageProvider key) {
     return new MultiFrameImageStreamCompleter(
         codec: _loadAsync(key),
         scale: key.scale,
@@ -462,8 +480,16 @@ class FancyNetworkImageProvider extends NetworkImage {
 
   static final http.Client _httpClient = createHttpClient();
 
-  Future<ui.Codec> _loadAsync(NetworkImage key) async {
+  Future<ui.Codec> _loadAsync(FancyNetworkImageProvider key) async {
     assert(key == this);
+
+    if (key.url == null || key.url.isEmpty) {
+      errorListener();
+      throw new StateError(
+        'Null or Empty imageUrl provided to the FancyNetworkImage',
+      );
+    }
+
     try {
       final Uri resolved = Uri.base.resolve(key.url);
       final http.Response response =
@@ -474,7 +500,8 @@ class FancyNetworkImageProvider extends NetworkImage {
 
       final Uint8List bytes = response.bodyBytes;
       if (bytes.lengthInBytes == 0)
-        throw new Exception('NetworkImage is an empty file: $resolved');
+        throw new Exception(
+            'FancyNetworkImageProvider is an empty file: $resolved');
 
       return await ui.instantiateImageCodec(bytes);
     } catch (e) {
@@ -482,4 +509,17 @@ class FancyNetworkImageProvider extends NetworkImage {
       rethrow;
     }
   }
+
+  @override
+  bool operator ==(dynamic other) {
+    if (other.runtimeType != runtimeType) return false;
+    final FancyNetworkImageProvider typedOther = other;
+    return url == typedOther.url && scale == typedOther.scale;
+  }
+
+  @override
+  int get hashCode => hashValues(url, scale);
+
+  @override
+  String toString() => '$runtimeType("$url", scale: $scale)';
 }
