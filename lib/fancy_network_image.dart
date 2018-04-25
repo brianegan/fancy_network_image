@@ -13,7 +13,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 class FancyNetworkImage extends StatefulWidget {
@@ -44,8 +43,7 @@ class FancyNetworkImage extends StatefulWidget {
     this.matchTextDirection: false,
     this.headers,
     this.scale: 1.0,
-  })
-      : assert(fadeOutDuration != null),
+  })  : assert(fadeOutDuration != null),
         assert(fadeOutCurve != null),
         assert(fadeInDuration != null),
         assert(fadeInCurve != null),
@@ -454,7 +452,7 @@ class FancyNetworkImageProvider
   /// The scale to place in the [ImageInfo] object of the image.
   final double scale;
 
-  /// The HTTP headers that will be used with [HttpClient.get] to fetch image from network.
+  /// The HTTP headers that will be used with [http.get] to fetch image from network.
   final Map<String, String> headers;
 
   /// Listener to be called when images fails to load.
@@ -478,8 +476,6 @@ class FancyNetworkImageProvider
         });
   }
 
-  static final http.Client _httpClient = createHttpClient();
-
   Future<ui.Codec> _loadAsync(FancyNetworkImageProvider key) async {
     assert(key == this);
 
@@ -492,8 +488,7 @@ class FancyNetworkImageProvider
 
     try {
       final Uri resolved = Uri.base.resolve(key.url);
-      final http.Response response =
-          await _httpClient.get(resolved, headers: headers);
+      final http.Response response = await http.get(resolved, headers: headers);
       if (response == null || response.statusCode != 200)
         throw new Exception('HTTP request failed, statusCode: ${response
             ?.statusCode}, $resolved');
